@@ -1,0 +1,1223 @@
+# EM Simulator — Simulador 3D Interactivo de Electromagnetismo
+
+> **Para agentes de IA y colaboradores:** Este README es la fuente de verdad del proyecto. Antes de escribir cualquier línea de código, leer este documento completo. No agregar features no documentadas aquí. No cambiar nombres de archivos, clases ni métodos sin actualizar primero este documento. El objetivo del proyecto está definido en la sección "Visión General" y no debe desviarse.
+
+---
+
+## Tabla de Contenidos
+
+1. [Visión General](#1-visión-general)
+2. [Objetivo Educativo](#2-objetivo-educativo)
+3. [Stack Tecnológico](#3-stack-tecnológico)
+4. [Estructura de Carpetas](#4-estructura-de-carpetas)
+5. [Arquitectura y Flujo de Datos](#5-arquitectura-y-flujo-de-datos)
+6. [Módulo: gui/](#6-módulo-gui)
+7. [Módulo: renderer/](#7-módulo-renderer)
+8. [Módulo: elements/](#8-módulo-elements)
+9. [Módulo: physics/](#9-módulo-physics)
+10. [Módulo: ai_assistant/](#10-módulo-ai_assistant)
+11. [Módulo: utils/](#11-módulo-utils)
+12. [Convenciones de Código](#12-convenciones-de-código)
+13. [Reglas para Agentes de IA](#13-reglas-para-agentes-de-ia)
+14. [Roadmap de Implementación](#14-roadmap-de-implementación)
+15. [Dependencias y Entorno](#15-dependencias-y-entorno)
+
+---
+
+## 1. Visión General
+
+EM Simulator es una aplicación de escritorio interactiva en **Python** que permite visualizar y experimentar con los principios fundamentales del electromagnetismo en un entorno 3D en tiempo real.
+
+El usuario puede colocar elementos físicos (imanes, espiras, cables, baterías, LEDs, switches) en una escena 3D, colocar electrones manualmente, y observar cómo se comportan dentro de los campos electromagnéticos generados. La aplicación calcula y visualiza en tiempo real los campos vectoriales **E** (eléctrico) y **B** (magnético), las trayectorias de las partículas, las fuerzas de Lorentz, la inducción electromagnética, y el producto cruzado de vectores de corriente, campo y fuerza.
+
+Adicionalmente, la arquitectura incluye un módulo de asistente de IA (`ai_assistant/`) cuyo esqueleto está preparado para conectar en el futuro un LLM (Large Language Model) que pueda responder preguntas sobre lo que ocurre en la escena, análizando magnitudes, elementos y sus interacciones, citando principios físicos.
+
+**Lo que el simulador NO es:**
+- No es un simulador de circuitos tipo LTspice (no reemplaza SPICE).
+- No es una aplicación web (es exclusivamente de escritorio).
+- No es un motor de física de propósito general.
+- No tiene ningún componente de realidad virtual ni realidad aumentada.
+
+---
+
+## 2. Objetivo Educativo
+
+El simulador está diseñado para que el usuario comprenda visualmente los siguientes conceptos de electromagnetismo. **Cada feature del simulador debe tener como justificación uno o más de estos conceptos:**
+
+### Leyes y principios que se deben poder observar
+
+| Concepto | Cómo se observa en el simulador |
+|---|---|
+| **Fuerza de Lorentz** `F = q(E + v×B)` | Un electrón colocado manualmente en el viewport se mueve siguiendo la trayectoria dictada por esta ecuación |
+| **Ley de Biot-Savart** | Un cable con corriente genera un campo B visible como flechas/líneas alrededor del cable |
+| **Ley de Ampere** | La circulación del campo B alrededor de un conductor es proporcional a la corriente encerrada |
+| **Ley de Faraday** | Mover un imán dentro de una espira genera una FEM inducida visible (voltaje que aparece en el panel de propiedades) |
+| **Ley de Lenz** | La corriente inducida genera un campo que se opone al cambio de flujo (el signo de la FEM cambia al invertir el movimiento) |
+| **Fuerza electromotriz (FEM)** | Las baterías introducen una FEM en el circuito, observable como diferencia de potencial |
+| **Torque en motores** | Una espira con corriente dentro de un campo B externo experimenta un torque que la hace rotar |
+| **Producto cruzado J×B** | Visualización 3D del vector de fuerza resultante sobre un conductor con corriente en campo B |
+| **Voltaje (V)** | Configurable en baterías; observable como diferencia de potencial entre nodos del circuito |
+| **Corriente (I)** | Calculada según ley de Ohm; visible como densidad/color de electrones en el cable |
+| **Resistencia (R)** | Configurable en cables y LEDs; afecta la corriente y por ende el campo B generado |
+| **Inductancia (L)** | Las espiras y solenoides tienen inductancia calculada; visible como retardo en el cambio de corriente |
+
+---
+
+## 3. Stack Tecnológico
+
+### Lenguaje
+- **Python 3.11+** — versión mínima requerida
+
+### Dependencias principales
+
+| Librería | Versión mínima | Uso |
+|---|---|---|
+| `PyQt6` | 6.6+ | Framework GUI: ventanas, paneles, widgets, señales/slots |
+| `PyOpenGL` | 3.1+ | Rendering 3D con OpenGL |
+| `moderngl` | 5.10+ | Abstracción moderna sobre OpenGL (shaders, VAOs, FBOs) |
+| `numpy` | 1.26+ | Todos los cálculos matriciales y vectoriales |
+| `scipy` | 1.12+ | Integración numérica de ODEs para trayectorias de partículas |
+| `pyrr` | 0.10+ | Matrices de transformación 3D (model, view, projection) |
+
+### Dependencias opcionales (para el módulo IA, futuro)
+
+| Librería | Uso |
+|---|---|
+| `anthropic` | Cliente oficial para Claude API |
+| `openai` | Cliente alternativo para GPT |
+| `requests` | Fallback HTTP genérico para LLMs locales (Ollama, etc.) |
+
+### Herramientas de desarrollo
+
+| Herramienta | Uso |
+|---|---|
+| `pytest` | Tests unitarios de física |
+| `black` | Formateo de código |
+| `ruff` | Linting |
+| `mypy` | Type checking |
+
+---
+
+## 4. Estructura de Carpetas
+
+La estructura de carpetas es **fija**. No crear carpetas adicionales sin documentarlas aquí primero.
+
+```
+em_simulator/
+│
+├── main.py                        # Punto de entrada. Solo inicializa QApplication y MainWindow.
+├── requirements.txt               # Dependencias exactas con versiones pinneadas
+├── requirements-dev.txt           # Dependencias de desarrollo (pytest, black, ruff, mypy)
+├── README.md                      # Este archivo
+├── .gitignore
+│
+├── gui/                           # Todo lo relacionado con la interfaz de usuario
+│   ├── __init__.py
+│   ├── main_window.py             # Ventana principal, layout general, ensamblaje de widgets
+│   ├── control_panel.py           # Panel de control flotante/acoplable con tabs
+│   ├── viz_toggles.py             # Estado global de toggles de visualización
+│   └── ai_panel.py                # Panel flotante del asistente IA (esqueleto)
+│
+├── renderer/                      # Renderizado 3D con OpenGL/moderngl
+│   ├── __init__.py
+│   ├── scene3d.py                 # Escena principal: cámara, ejes, loop de render
+│   ├── field_renderer.py          # Dibuja campos vectoriales, líneas de campo
+│   └── objects.py                 # Meshes 3D de cada elemento y de los electrones
+│
+├── elements/                      # Clases de los objetos físicos que el usuario puede colocar
+│   ├── __init__.py
+│   ├── base_element.py            # Clase abstracta base con interfaz común
+│   ├── magnet.py                  # Imán permanente (dipolo magnético)
+│   ├── coil.py                    # Espira y solenoide
+│   ├── wire.py                    # Cable conductor (recto o curvo)
+│   ├── battery.py                 # Batería (fuente de FEM)
+│   ├── led.py                     # LED (resistencia + emisión de luz simulada)
+│   └── switch.py                  # Switch (abierto/cerrado, interrumpe circuito)
+│
+├── physics/                       # Motor de cálculo físico. Sin dependencias de GUI.
+│   ├── __init__.py
+│   ├── em_fields.py               # Cálculo de campos E y B en la grilla 3D
+│   ├── particles.py               # Integración de trayectorias de electrones (ODE)
+│   ├── induction.py               # Flujo magnético, FEM, ley de Faraday/Lenz
+│   └── circuits.py                # Análisis de circuitos: Ohm, Kirchhoff, nodos
+│
+├── ai_assistant/                  # Módulo IA — esqueleto preparado, sin implementar
+│   ├── __init__.py
+│   ├── context_builder.py         # Serializa el estado de la escena para el LLM
+│   ├── llm_connector.py           # Interfaz abstracta + stubs para Claude/GPT/local
+│   ├── region_selector.py         # Captura región seleccionada en el viewport 3D
+│   └── physics_explainer.py       # Mapea magnitudes numéricas a conceptos físicos
+│
+├── utils/                         # Utilidades transversales sin lógica de dominio
+│   ├── __init__.py
+│   ├── math_utils.py              # Funciones vectoriales auxiliares (cross, curl, div)
+│   ├── constants.py               # Constantes físicas universales (mu_0, epsilon_0, e, etc.)
+│   ├── scene_io.py                # Guardar/cargar escenas en formato JSON
+│   └── config.py                  # Configuración de la aplicación (colores, tamaños, defaults)
+│
+└── assets/                        # Recursos estáticos
+    ├── shaders/                   # Archivos GLSL (.vert, .frag) para OpenGL
+    │   ├── vector_field.vert
+    │   ├── vector_field.frag
+    │   ├── particle.vert
+    │   └── particle.frag
+    └── icons/                     # Iconos de la barra de herramientas (PNG 32x32)
+```
+
+---
+
+## 5. Arquitectura y Flujo de Datos
+
+### Principio de dependencias
+
+Las capas solo pueden importar de capas inferiores. **Nunca hacia arriba.**
+
+```
+gui/  →  renderer/  →  elements/  →  physics/  →  utils/
+               ↓
+         ai_assistant/  →  physics/  →  utils/
+```
+
+- `physics/` no importa nada de `gui/`, `renderer/` ni `elements/`.
+- `renderer/` no importa nada de `gui/`.
+- `ai_assistant/` no importa nada de `gui/` ni `renderer/`.
+- `utils/` no importa nada de ningún otro módulo del proyecto.
+
+### Flujo principal por frame
+
+```
+1. El usuario interactúa con control_panel.py o el viewport 3D
+2. Los cambios se propagan vía señales Qt a main_window.py
+3. main_window.py llama a physics/ para recalcular campos si hubo cambio de escena
+4. physics/ devuelve numpy arrays con los campos E, B y posiciones de partículas
+5. main_window.py pasa los arrays a scene3d.py para el siguiente frame
+6. scene3d.py llama a field_renderer.py y objects.py para dibujar
+7. viz_toggles.py controla qué capas visuales se renderizan en cada frame
+```
+
+### Estado global de la aplicación
+
+No existe un singleton de estado global. El estado se pasa explícitamente entre componentes. La única excepción es `viz_toggles.py`, que actúa como contenedor de estado de visualización observable mediante señales Qt (patrón Observer).
+
+### Formato de datos entre física y render
+
+Los campos se representan como `numpy.ndarray` de shape `(Nx, Ny, Nz, 3)` donde los primeros tres índices son la posición en la grilla 3D y el último índice es el componente del vector `[x, y, z]`. La resolución de la grilla por defecto es `(20, 20, 20)` y es configurable en `config.py`.
+
+```python
+# Ejemplo de shape del campo B
+B_field: np.ndarray  # shape (20, 20, 20, 3), dtype float64
+E_field: np.ndarray  # shape (20, 20, 20, 3), dtype float64
+```
+
+---
+
+## 6. Módulo: `gui/`
+
+### `main_window.py`
+
+**Responsabilidad:** Ensamblar todos los widgets en la ventana principal y gestionar la comunicación entre ellos mediante señales Qt. Es el coordinador central pero no contiene lógica de física ni de render.
+
+**Clase principal:** `MainWindow(QMainWindow)`
+
+**Layout de la ventana:**
+- Barra de título con nombre de escena actual
+- Área central: el viewport 3D (`scene3d.py` embebido como widget OpenGL)
+- Panel de control: acoplado por defecto a la izquierda, puede flotar o ir a la derecha
+- Panel IA: flotante, oculto por defecto, activable desde el menú o atajo de teclado
+- Barra de estado inferior: muestra coordenadas del cursor 3D, FPS, número de electrones activos
+
+**Señales que emite `MainWindow`:**
+- `scene_changed` — cuando se agrega/elimina/modifica un elemento
+- `simulation_step` — en cada frame de la simulación (timer Qt)
+
+**Slots que recibe `MainWindow`:**
+- `on_element_added(element)` — desde el panel de control
+- `on_toggle_changed(toggle_name, state)` — desde `viz_toggles.py`
+- `on_ai_question(question, region)` — desde el panel IA
+
+**Atajos de teclado:**
+- `Space` — Play/Pause de la simulación
+- `R` — Reset de la escena (con confirmación)
+- `Ctrl+S` — Guardar escena
+- `Ctrl+O` — Abrir escena
+- `F1` — Mostrar/ocultar panel IA
+- `Escape` — Cancelar modo de colocación de elemento
+
+---
+
+### `control_panel.py`
+
+**Responsabilidad:** Interfaz de usuario para agregar elementos, modificar sus propiedades y controlar la simulación. Es un `QDockWidget` acoplable.
+
+**Clase principal:** `ControlPanel(QDockWidget)`
+
+El panel tiene tres tabs implementadas con `QTabWidget`:
+
+#### Tab 1: "Elementos"
+
+Lista de botones para agregar objetos a la escena. Al hacer clic en un botón, se activa el modo de colocación: el cursor cambia y el siguiente clic en el viewport 3D coloca el elemento en esa posición.
+
+Botones disponibles (en este orden exacto, no agregar más sin documentarlos):
+1. **Imán** (`magnet.py`) — imán permanente con polo N y S configurables
+2. **Espira** (`coil.py`) — espira simple, orientación y radio configurables
+3. **Solenoide** (`coil.py`) — múltiples espiras, número de vueltas y longitud configurables
+4. **Cable recto** (`wire.py`) — conductor recto con dirección de corriente
+5. **Batería** (`battery.py`) — fuente de FEM con voltaje configurable
+6. **LED** (`led.py`) — resistencia + indicador visual de corriente
+7. **Switch** (`switch.py`) — interruptor abierto/cerrado
+8. **Electrón** — coloca un electrón libre con velocidad inicial configurable
+
+Al seleccionar un elemento ya colocado en la escena, debajo de los botones aparece un subpanel de propiedades específico de ese elemento (ver sección `elements/`).
+
+#### Tab 2: "Visualización"
+
+Checkboxes y sliders para controlar qué se renderiza. Cada uno corresponde a una propiedad en `viz_toggles.py`.
+
+| Control | Tipo | Nombre interno en `viz_toggles` | Por defecto |
+|---|---|---|---|
+| Campo B (vectores) | Checkbox | `show_B_vectors` | True |
+| Campo E (vectores) | Checkbox | `show_E_vectors` | False |
+| Líneas de campo B | Checkbox | `show_B_fieldlines` | False |
+| Líneas de campo E | Checkbox | `show_E_fieldlines` | False |
+| Campo como color de fondo | Checkbox | `show_field_colormap` | False |
+| Trayectorias de electrones | Checkbox | `show_particle_trails` | True |
+| Producto cruzado J×B | Checkbox | `show_cross_product` | False |
+| Ejes XYZ | Checkbox | `show_axes` | True |
+| Densidad de vectores | Slider (1–5) | `vector_density` | 3 |
+| Escala de vectores | Slider (0.1–2.0) | `vector_scale` | 1.0 |
+
+#### Tab 3: "Simulación"
+
+| Control | Tipo | Acción |
+|---|---|---|
+| Play/Pause | Botón toggle | Inicia o pausa el loop de simulación |
+| Velocidad | Slider (0.1x – 10x) | Multiplica el paso de tiempo `dt` |
+| Paso único | Botón | Avanza exactamente un frame sin correr el loop |
+| Reset partículas | Botón | Elimina todos los electrones sin tocar los elementos |
+| Reset escena | Botón | Elimina todo (con confirmación) |
+| Guardar | Botón | Llama a `scene_io.save_scene()` |
+| Cargar | Botón | Llama a `scene_io.load_scene()` |
+
+---
+
+### `viz_toggles.py`
+
+**Responsabilidad:** Objeto de estado que contiene todos los booleanos y valores de visualización. Emite una señal Qt `toggle_changed(str, object)` cada vez que cambia un valor. El `ControlPanel` lo modifica; el `scene3d.py` lo lee en cada frame.
+
+**Clase principal:** `VizToggles(QObject)`
+
+```python
+class VizToggles(QObject):
+    toggle_changed = pyqtSignal(str, object)
+
+    def __init__(self):
+        # Todos los toggles con sus valores por defecto
+        self.show_B_vectors: bool = True
+        self.show_E_vectors: bool = False
+        self.show_B_fieldlines: bool = False
+        self.show_E_fieldlines: bool = False
+        self.show_field_colormap: bool = False
+        self.show_particle_trails: bool = True
+        self.show_cross_product: bool = False
+        self.show_axes: bool = True
+        self.vector_density: int = 3       # 1 = poco denso, 5 = muy denso
+        self.vector_scale: float = 1.0
+
+    def set(self, name: str, value) -> None:
+        # Establece el valor y emite la señal
+        ...
+```
+
+---
+
+### `ai_panel.py`
+
+**Responsabilidad:** Panel flotante (`QDialog` no modal) con la interfaz de usuario del asistente IA. Implementa solo la UI — la lógica está en `ai_assistant/`.
+
+**Clase principal:** `AIPanel(QDialog)`
+
+**Componentes de la UI:**
+1. **Botón "Seleccionar región"** — activa `region_selector.py` para capturar una zona del viewport
+2. **Indicador de región** — muestra si hay una región seleccionada o no ("Sin selección" / "Región activa: X,Y,Z → X2,Y2,Z2")
+3. **Campo de texto** (`QLineEdit`) — para escribir la pregunta
+4. **Botón "Preguntar"** — envía pregunta + contexto al LLM
+5. **Área de respuesta** (`QTextEdit`, solo lectura, con scroll) — muestra la respuesta del LLM
+6. **Indicador de estado** — "Listo", "Consultando IA...", "Error: ..."
+
+**Estado inicial:** El panel muestra un mensaje de placeholder en el área de respuesta:
+```
+El asistente de IA no está configurado aún.
+Para activarlo, implementa ai_assistant/llm_connector.py
+con tu proveedor de LLM preferido (Claude, GPT, etc.)
+```
+
+**Señal que emite:**
+- `question_submitted(question: str, context: dict)` — con la pregunta y el contexto JSON de la escena
+
+---
+
+## 7. Módulo: `renderer/`
+
+### `scene3d.py`
+
+**Responsabilidad:** Widget OpenGL principal. Gestiona el contexto OpenGL, la cámara orbital, el loop de render, e invoca a `field_renderer.py` y `objects.py` para dibujar cada frame.
+
+**Clase principal:** `Scene3D(QOpenGLWidget)`
+
+**Cámara:** Orbital (arcball). El usuario puede:
+- **Rotar:** clic izquierdo + arrastrar
+- **Zoom:** scroll del mouse
+- **Pan:** clic medio + arrastrar
+- **Clic derecho en objeto:** seleccionarlo (lo resalta y abre sus propiedades en el panel de control)
+- **Clic izquierdo en espacio vacío** (modo colocación activo): colocar el elemento seleccionado en el panel de control
+
+**Atributos internos:**
+```python
+self.ctx: moderngl.Context          # Contexto OpenGL
+self.camera: Camera                 # Clase interna para matrices view/projection
+self.field_renderer: FieldRenderer  # Instancia del renderer de campos
+self.objects_renderer: ObjectsRenderer  # Instancia del renderer de meshes
+self.viz_toggles: VizToggles        # Referencia al estado de toggles
+self.elements: list[BaseElement]    # Lista de elementos en escena
+self.particles: list[Particle]      # Lista de electrones activos
+self.B_field: np.ndarray            # Campo B actual, shape (Nx, Ny, Nz, 3)
+self.E_field: np.ndarray            # Campo E actual, shape (Nx, Ny, Nz, 3)
+```
+
+**Método `paintGL()`:** Llamado en cada frame. Orden de render:
+1. Limpiar buffer con color de fondo
+2. Si `show_axes`: dibujar ejes XYZ
+3. Si `show_field_colormap`: dibujar volumen de fondo con color según magnitud de campo
+4. Si `show_B_vectors` o `show_E_vectors`: invocar `field_renderer.draw_vectors()`
+5. Si `show_B_fieldlines` o `show_E_fieldlines`: invocar `field_renderer.draw_fieldlines()`
+6. Si `show_cross_product`: invocar `field_renderer.draw_cross_product()`
+7. Dibujar todos los elementos: `objects_renderer.draw_elements(self.elements)`
+8. Dibujar todos los electrones con trail si `show_particle_trails`: `objects_renderer.draw_particles(self.particles)`
+
+---
+
+### `field_renderer.py`
+
+**Responsabilidad:** Dibujar representaciones visuales del campo electromagnético usando OpenGL.
+
+**Clase principal:** `FieldRenderer`
+
+**Métodos públicos:**
+
+```python
+def draw_vectors(self, field: np.ndarray, color: tuple, scale: float, density: int) -> None:
+    """
+    Dibuja el campo como flechas 3D sobre la grilla.
+    - field: array (Nx, Ny, Nz, 3)
+    - color: (R, G, B) base, pero cada flecha se colorea según la magnitud (escala de calor)
+    - scale: factor de escala de la longitud de las flechas
+    - density: cuántos puntos de la grilla se muestran (1=todos, 2=uno de cada 2, etc.)
+    Las flechas más intensas son rojas/naranjas, las más débiles son azules/moradas.
+    """
+
+def draw_fieldlines(self, field: np.ndarray, color: tuple, n_lines: int) -> None:
+    """
+    Traza líneas de campo 3D usando integración de Runge-Kutta desde puntos semilla.
+    - n_lines: número de líneas de campo a trazar (por defecto 20)
+    Los puntos semilla se colocan alrededor del origen o de los elementos con campo.
+    """
+
+def draw_cross_product(self, J: np.ndarray, B: np.ndarray) -> None:
+    """
+    Calcula y dibuja los vectores J×B como flechas de color verde.
+    - J: densidad de corriente, shape (Nx, Ny, Nz, 3)
+    - B: campo magnético, shape (Nx, Ny, Nz, 3)
+    """
+
+def draw_colormap_volume(self, field: np.ndarray) -> None:
+    """
+    Renderiza el espacio 3D con colores que representan la magnitud del campo.
+    Usa un simple raycasting volumétrico o un mapa de calor en planos de corte.
+    La implementación exacta puede ser simplificada para el MVP:
+    dibujar tres planos de corte (XY, YZ, XZ) con colormap.
+    """
+```
+
+---
+
+### `objects.py`
+
+**Responsabilidad:** Meshes y geometría 3D de cada tipo de elemento y de los electrones.
+
+**Clase principal:** `ObjectsRenderer`
+
+**Métodos públicos:**
+
+```python
+def draw_elements(self, elements: list) -> None:
+    """Itera la lista de elementos y delega a draw_{tipo}() correspondiente."""
+
+def draw_magnet(self, element) -> None:
+    """Dibuja un imán como un rectángulo rojo/azul (norte/sur) con etiquetas N y S."""
+
+def draw_coil(self, element) -> None:
+    """Dibuja una espira como un toro (torus mesh) o un solenoide como múltiples toros."""
+
+def draw_wire(self, element) -> None:
+    """Dibuja un cable como un cilindro. La dirección de la corriente se indica con una flecha."""
+
+def draw_battery(self, element) -> None:
+    """Dibuja una batería como un cilindro con los terminales + y - marcados."""
+
+def draw_led(self, element) -> None:
+    """Dibuja un LED como una cápsula pequeña. Si hay corriente, emite luz (halo amarillo)."""
+
+def draw_switch(self, element) -> None:
+    """Dibuja un switch. Abierto = brecha visible en el cable. Cerrado = cable continuo."""
+
+def draw_particles(self, particles: list, show_trails: bool) -> None:
+    """
+    Dibuja electrones como esferas pequeñas azules.
+    Si show_trails=True, dibuja la trayectoria previa como una línea punteada.
+    El color de la esfera puede variar según la velocidad (azul=lento, blanco=rápido).
+    """
+```
+
+**Criterio de selección:** Cuando el usuario hace clic en el viewport, `scene3d.py` realiza ray casting y determina qué elemento (si alguno) fue clickeado. El elemento seleccionado se dibuja con un contorno amarillo (outline pass).
+
+---
+
+## 8. Módulo: `elements/`
+
+### `base_element.py`
+
+**Clase abstracta:** `BaseElement`
+
+Todo elemento de la escena hereda de esta clase. Define la interfaz que el motor físico espera.
+
+```python
+from abc import ABC, abstractmethod
+import numpy as np
+
+class BaseElement(ABC):
+    def __init__(self, position: np.ndarray, orientation: np.ndarray):
+        self.position: np.ndarray    # [x, y, z] en metros
+        self.orientation: np.ndarray # cuaternión [w, x, y, z]
+        self.id: str                 # UUID único, asignado al crear
+        self.name: str               # Nombre legible, ej: "Imán #1"
+        self.is_selected: bool = False
+        self.is_active: bool = True  # Si False, no contribuye al campo
+
+    @abstractmethod
+    def get_B_contribution(self, points: np.ndarray) -> np.ndarray:
+        """
+        Calcula la contribución de este elemento al campo B en los puntos dados.
+        - points: shape (N, 3) — coordenadas donde se evalúa el campo
+        - returns: shape (N, 3) — vector B en cada punto, en Teslas
+        """
+
+    @abstractmethod
+    def get_E_contribution(self, points: np.ndarray) -> np.ndarray:
+        """
+        Calcula la contribución de este elemento al campo E en los puntos dados.
+        - points: shape (N, 3) — coordenadas donde se evalúa el campo
+        - returns: shape (N, 3) — vector E en cada punto, en V/m
+        """
+
+    @abstractmethod
+    def get_properties_widget(self) -> QWidget:
+        """
+        Retorna el widget Qt con los controles de propiedades de este elemento.
+        Este widget se muestra en el panel de control cuando el elemento está seleccionado.
+        """
+
+    @abstractmethod
+    def to_dict(self) -> dict:
+        """Serializa el elemento a un dict para guardarlo en JSON."""
+
+    @classmethod
+    @abstractmethod
+    def from_dict(cls, data: dict) -> 'BaseElement':
+        """Reconstruye el elemento desde un dict cargado de JSON."""
+```
+
+---
+
+### `magnet.py`
+
+**Clase:** `Magnet(BaseElement)`
+
+**Modelo físico:** Dipolo magnético puntual. El campo B de un dipolo en un punto r es:
+```
+B = (mu_0 / 4π) * [ 3(m·r̂)r̂ − m ] / |r|³
+```
+donde `m` es el momento dipolar magnético en A·m².
+
+**Propiedades configurables:**
+- `dipole_moment: float` — magnitud del momento magnético en A·m² (default: 1.0)
+- `orientation: np.ndarray` — eje del dipolo (por defecto apunta en Z)
+
+**Widget de propiedades:** Slider para `dipole_moment` (rango: 0.01 — 100 A·m²), y controles de orientación (ángulos pitch/yaw).
+
+---
+
+### `coil.py`
+
+**Clase:** `Coil(BaseElement)`
+
+**Modelo físico:** Espira circular. El campo B en el eje de una espira de radio `R` con corriente `I` a distancia `z` del centro:
+```
+B_z = (mu_0 * I * R²) / (2 * (R² + z²)^(3/2))
+```
+Para puntos fuera del eje se usa la ley de Biot-Savart numérica (integración discreta del filamento).
+
+**Propiedades configurables:**
+- `radius: float` — radio en metros (default: 0.1)
+- `current: float` — corriente en Amperios (default: 1.0, positivo = sentido antihorario visto desde arriba)
+- `n_turns: int` — número de vueltas (si n_turns > 1, es un solenoide, default: 1)
+- `length: float` — longitud del solenoide en metros (solo relevante si n_turns > 1, default: 0.1)
+
+**Widget de propiedades:** Sliders para `radius`, `current`, `n_turns`, `length`.
+
+---
+
+### `wire.py`
+
+**Clase:** `Wire(BaseElement)`
+
+**Modelo físico:** Segmento de cable recto finito. El campo B se calcula con Biot-Savart para un conductor finito. La corriente en el cable puede ser suministrada por una batería del circuito o configurada manualmente.
+
+**Propiedades configurables:**
+- `length: float` — longitud en metros (default: 0.5)
+- `current: float` — corriente en A (default: 1.0). Si el cable está en un circuito, este valor es calculado automáticamente.
+- `resistance: float` — resistencia en Ohms (default: 1.0)
+- `direction: np.ndarray` — vector unitario de dirección del cable
+
+**Conexiones de circuito:** Un cable puede tener dos extremos (`endpoint_a`, `endpoint_b`) que se conectan con otros elementos. Esta conectividad es gestionada por `physics/circuits.py`.
+
+---
+
+### `battery.py`
+
+**Clase:** `Battery(BaseElement)`
+
+**Modelo físico:** Fuente de FEM ideal con resistencia interna.
+
+**Propiedades configurables:**
+- `voltage: float` — FEM en Voltios (default: 9.0)
+- `internal_resistance: float` — resistencia interna en Ohms (default: 0.1)
+- `positive_terminal: np.ndarray` — posición del terminal positivo relativa al centro
+- `negative_terminal: np.ndarray` — posición del terminal negativo relativa al centro
+
+**Campo generado:** Las baterías NO generan campo B ni E en el espacio (modelo simplificado). Solo contribuyen al circuito eléctrico. `get_B_contribution()` y `get_E_contribution()` retornan arrays de ceros.
+
+---
+
+### `led.py`
+
+**Clase:** `LED(BaseElement)`
+
+**Modelo físico:** Diodo LED simplificado. Se comporta como una resistencia constante (modelo lineal, no se simula la curva IV del diodo real en el MVP).
+
+**Propiedades configurables:**
+- `resistance: float` — resistencia equivalente en Ohms (default: 100.0)
+- `forward_voltage: float` — voltaje mínimo para encenderse en V (default: 2.0)
+- `color: tuple` — color del LED en RGB, afecta solo la visualización
+
+**Estado calculado:** `is_on: bool` — True si la corriente que pasa excede el umbral mínimo.
+
+**Campo generado:** LEDs NO generan campo E ni B. Retornan arrays de ceros.
+
+---
+
+### `switch.py`
+
+**Clase:** `Switch(BaseElement)`
+
+**Propiedades:**
+- `is_closed: bool` — estado del switch (default: True = circuito cerrado)
+
+Cuando `is_closed = False`, el switch interrumpe el circuito: `circuits.py` trata la conexión como un circuito abierto (resistencia infinita). El usuario puede hacer clic en el switch en el viewport para alternarlo, o usar el checkbox en el panel de propiedades.
+
+**Campo generado:** Retorna arrays de ceros siempre.
+
+---
+
+## 9. Módulo: `physics/`
+
+> **Importante para agentes de IA:** Este módulo NO debe tener ninguna importación de `gui/`, `renderer/` ni `PyQt6`. Es Python puro con NumPy y SciPy. Los tests unitarios se ejecutan importando solo este módulo.
+
+### `em_fields.py`
+
+**Responsabilidad:** Calcular los campos E y B totales en la grilla 3D sumando las contribuciones de todos los elementos activos en la escena (principio de superposición).
+
+**Funciones públicas:**
+
+```python
+def compute_B_field(elements: list, grid_points: np.ndarray) -> np.ndarray:
+    """
+    Calcula el campo B total en todos los puntos de la grilla usando superposición.
+    - elements: lista de BaseElement activos en la escena
+    - grid_points: shape (N, 3), coordenadas de todos los puntos de la grilla
+    - returns: shape (N, 3), campo B total en cada punto, en Teslas
+    
+    Internamente llama a element.get_B_contribution(grid_points) para cada elemento
+    y suma los resultados. Esta función NO reshapea a (Nx, Ny, Nz, 3); eso lo hace
+    el llamador si es necesario.
+    """
+
+def compute_E_field(elements: list, grid_points: np.ndarray) -> np.ndarray:
+    """
+    Igual que compute_B_field pero para el campo E en V/m.
+    """
+
+def make_grid(bounds: tuple, resolution: int) -> np.ndarray:
+    """
+    Crea una grilla 3D uniforme.
+    - bounds: (x_min, x_max, y_min, y_max, z_min, z_max) en metros
+    - resolution: número de puntos por eje
+    - returns: shape (resolution^3, 3) con las coordenadas de todos los puntos
+    """
+
+def compute_cross_product_field(J_field: np.ndarray, B_field: np.ndarray) -> np.ndarray:
+    """
+    Calcula F = J × B en cada punto de la grilla.
+    - J_field: shape (N, 3), densidad de corriente en A/m²
+    - B_field: shape (N, 3), campo magnético en T
+    - returns: shape (N, 3), fuerza en N/m³
+    """
+```
+
+---
+
+### `particles.py`
+
+**Responsabilidad:** Integrar numéricamente las ecuaciones de movimiento de los electrones bajo la fuerza de Lorentz.
+
+**Clase:** `Particle`
+
+```python
+class Particle:
+    def __init__(self, position: np.ndarray, velocity: np.ndarray, charge: float = -1.6e-19, mass: float = 9.11e-31):
+        self.position: np.ndarray  # [x, y, z] en metros
+        self.velocity: np.ndarray  # [vx, vy, vz] en m/s
+        self.charge: float         # en Coulombs (electrón: -1.6e-19)
+        self.mass: float           # en kg (electrón: 9.11e-31)
+        self.trail: list[np.ndarray]  # historial de posiciones (últimas 200)
+        self.is_active: bool = True
+```
+
+**Funciones públicas:**
+
+```python
+def lorentz_force(particle: Particle, E: np.ndarray, B: np.ndarray) -> np.ndarray:
+    """
+    Calcula F = q*(E + v×B).
+    - E: campo eléctrico en la posición de la partícula, shape (3,)
+    - B: campo magnético en la posición de la partícula, shape (3,)
+    - returns: fuerza en Newtons, shape (3,)
+    """
+
+def step_particle(particle: Particle, E_interp, B_interp, dt: float) -> None:
+    """
+    Avanza la partícula un paso de tiempo dt usando el método de Boris (estándar para
+    integración de partículas en campos electromagnéticos, conserva energía mejor que RK4).
+    - E_interp: función callable que dado [x,y,z] retorna E en ese punto (interpolación del campo)
+    - B_interp: función callable que dado [x,y,z] retorna B en ese punto
+    - dt: paso de tiempo en segundos
+    Actualiza particle.position, particle.velocity, particle.trail en lugar.
+    """
+
+def step_all_particles(particles: list, E_field: np.ndarray, B_field: np.ndarray,
+                        grid_bounds: tuple, dt: float) -> None:
+    """
+    Avanza todos los electrones activos un paso de tiempo.
+    Crea internamente las funciones de interpolación (scipy.interpolate.RegularGridInterpolator)
+    y llama a step_particle() para cada uno.
+    Desactiva (is_active = False) las partículas que salgan de los bounds de la grilla.
+    """
+```
+
+**Método de integración:** Boris leapfrog. No usar RK4 ni Euler para la integración de partículas con campos magnéticos, ya que Boris conserva la energía correctamente en campos B.
+
+---
+
+### `induction.py`
+
+**Responsabilidad:** Calcular el flujo magnético a través de espiras y la FEM inducida.
+
+**Funciones públicas:**
+
+```python
+def magnetic_flux(coil: 'Coil', B_field_func) -> float:
+    """
+    Calcula el flujo magnético Φ = ∫∫ B·dA a través de la superficie de la espira.
+    Implementado con integración numérica (cuadratura de Gauss sobre el disco de la espira).
+    - coil: el objeto Coil
+    - B_field_func: callable que dado (x,y,z) retorna B en ese punto
+    - returns: flujo en Webers (Wb)
+    """
+
+def induced_emf(coil: 'Coil', flux_previous: float, flux_current: float, dt: float) -> float:
+    """
+    Calcula la FEM inducida por la ley de Faraday: EMF = -dΦ/dt
+    - returns: FEM en Voltios (negativo = ley de Lenz)
+    """
+
+def compute_all_induction(coils: list, B_field_func, dt: float) -> dict:
+    """
+    Calcula la FEM inducida en cada espira de la lista.
+    - returns: dict {coil.id: emf_value}
+    """
+```
+
+---
+
+### `circuits.py`
+
+**Responsabilidad:** Analizar el circuito eléctrico formado por los elementos conectados y calcular voltajes y corrientes en cada rama.
+
+**Modelo:** Análisis nodal (Modified Nodal Analysis, MNA). Los elementos se conectan por sus extremos (`endpoint_a`, `endpoint_b`). El grafo de conectividad se construye dinámicamente a partir de los elementos en la escena.
+
+**Funciones públicas:**
+
+```python
+def build_circuit_graph(elements: list) -> dict:
+    """
+    Construye el grafo de conectividad del circuito.
+    - returns: dict con nodos y ramas del circuito
+    Los elementos no conectados a ningún otro son ignorados.
+    """
+
+def solve_circuit(graph: dict) -> dict:
+    """
+    Resuelve el circuito usando MNA (sistema lineal Ax = b con numpy.linalg.solve).
+    - returns: dict {element_id: {'voltage': V, 'current': I}} para cada rama
+    Si el circuito está abierto (switch abierto), corriente = 0.
+    """
+
+def update_element_currents(elements: list, solution: dict) -> None:
+    """
+    Actualiza el atributo current de cada elemento conductor (Wire, Coil) con el
+    valor calculado por solve_circuit().
+    """
+```
+
+---
+
+## 10. Módulo: `ai_assistant/`
+
+> **Importante para agentes de IA:** Este módulo existe como **esqueleto**. Las clases están definidas con sus interfaces pero los métodos retornan `NotImplementedError` o valores placeholder. NO implementar la lógica del LLM sin instrucciones explícitas del desarrollador. No cambiar la interfaz de las clases.
+
+### `context_builder.py`
+
+**Clase:** `ContextBuilder`
+
+**Responsabilidad:** Serializa el estado actual de la escena en un diccionario JSON-serializable que puede ser enviado a un LLM como contexto.
+
+```python
+class ContextBuilder:
+    def build_scene_context(self, elements: list, particles: list,
+                            B_field: np.ndarray, E_field: np.ndarray) -> dict:
+        """
+        Construye un dict con:
+        {
+          "elements": [{"type": "Magnet", "position": [...], "dipole_moment": 1.0, ...}, ...],
+          "particles": [{"position": [...], "velocity": [...], "charge": -1.6e-19}, ...],
+          "field_stats": {
+            "B_max": float,   # magnitud máxima del campo B en la escena
+            "B_mean": float,
+            "E_max": float,
+            "E_mean": float
+          },
+          "circuit": {
+            "total_voltage": float,
+            "branches": [{"element_id": ..., "current": ..., "voltage": ...}]
+          }
+        }
+        """
+        raise NotImplementedError("ContextBuilder: implementación pendiente")
+
+    def build_region_context(self, region_bounds: tuple,
+                              B_field: np.ndarray, E_field: np.ndarray,
+                              particles_in_region: list) -> dict:
+        """
+        Igual que build_scene_context pero restringido a un volumen 3D específico.
+        - region_bounds: (x_min, x_max, y_min, y_max, z_min, z_max)
+        """
+        raise NotImplementedError("ContextBuilder: implementación pendiente")
+```
+
+---
+
+### `llm_connector.py`
+
+**Clase abstracta:** `LLMConnector` y stubs de implementación.
+
+```python
+from abc import ABC, abstractmethod
+
+class LLMConnector(ABC):
+    @abstractmethod
+    def ask(self, context: dict, question: str) -> str:
+        """
+        Envía el contexto de la escena y la pregunta al LLM.
+        - context: dict generado por ContextBuilder
+        - question: pregunta del usuario en lenguaje natural
+        - returns: respuesta del LLM en texto plano (puede contener Markdown)
+        """
+
+class ClaudeConnector(LLMConnector):
+    """Implementación para Anthropic Claude API. Pendiente de implementar."""
+    def __init__(self, api_key: str, model: str = "claude-sonnet-4-6"):
+        raise NotImplementedError("ClaudeConnector: configurar api_key y implementar ask()")
+
+    def ask(self, context: dict, question: str) -> str:
+        raise NotImplementedError
+
+class OpenAIConnector(LLMConnector):
+    """Implementación para OpenAI GPT API. Pendiente de implementar."""
+    def __init__(self, api_key: str, model: str = "gpt-4o"):
+        raise NotImplementedError("OpenAIConnector: configurar api_key y implementar ask()")
+
+    def ask(self, context: dict, question: str) -> str:
+        raise NotImplementedError
+
+class LocalConnector(LLMConnector):
+    """Implementación para LLMs locales vía Ollama u otro servidor HTTP. Pendiente."""
+    def __init__(self, base_url: str = "http://localhost:11434"):
+        raise NotImplementedError("LocalConnector: implementar ask() con requests")
+
+    def ask(self, context: dict, question: str) -> str:
+        raise NotImplementedError
+```
+
+**El prompt del sistema** que se enviará al LLM (cuando se implemente) debe incluir instrucciones para que responda como tutor de física, citando principios y, cuando sea posible, ecuaciones en LaTeX. Este prompt se define como constante en este archivo.
+
+```python
+SYSTEM_PROMPT = """
+Eres un tutor experto en electromagnetismo. El usuario te enviará el estado actual
+de un simulador 3D con elementos como imanes, espiras, cables y electrones.
+Tu tarea es explicar lo que está ocurriendo físicamente, citando las leyes relevantes
+(Lorentz, Faraday, Lenz, Biot-Savart, Ampere) y las magnitudes numéricas presentes.
+Responde en el idioma del usuario. Sé preciso, didáctico y cita las ecuaciones
+relevantes cuando ayude a la explicación.
+"""
+```
+
+---
+
+### `region_selector.py`
+
+**Clase:** `RegionSelector`
+
+**Responsabilidad:** Permite al usuario hacer clic y arrastrar en el viewport 3D para seleccionar un volumen cúbico. Devuelve los bounds 3D de la región seleccionada.
+
+```python
+class RegionSelector:
+    def start_selection(self, viewport: QOpenGLWidget) -> None:
+        """Activa el modo de selección de región en el viewport."""
+        raise NotImplementedError
+
+    def get_selected_bounds(self) -> tuple | None:
+        """
+        Retorna (x_min, x_max, y_min, y_max, z_min, z_max) de la región seleccionada,
+        o None si no hay selección activa.
+        """
+        raise NotImplementedError
+```
+
+---
+
+### `physics_explainer.py`
+
+**Clase:** `PhysicsExplainer`
+
+**Responsabilidad:** Convierte magnitudes numéricas del contexto en descripciones textuales de los fenómenos físicos. Actúa como capa intermedia entre los números y el LLM, enriqueciendo el contexto con interpretaciones.
+
+```python
+class PhysicsExplainer:
+    def explain_particle_motion(self, particle: dict, B: np.ndarray, E: np.ndarray) -> str:
+        """
+        Dado un electrón y los campos locales, genera una descripción textual de por qué
+        se mueve en la dirección que lo hace. Ej:
+        "El electrón se mueve con velocidad v=[...] m/s. El campo B=[...] T genera una
+         fuerza de Lorentz F=qv×B=[...] N que lo deflecta hacia..."
+        """
+        raise NotImplementedError
+
+    def explain_induction(self, coil: dict, flux_change: float, emf: float) -> str:
+        """Explica la FEM inducida en una espira según la ley de Faraday."""
+        raise NotImplementedError
+
+    def explain_circuit(self, circuit_state: dict) -> str:
+        """Explica el estado del circuito: voltajes, corrientes, resistencias."""
+        raise NotImplementedError
+```
+
+---
+
+## 11. Módulo: `utils/`
+
+### `constants.py`
+
+Todas las constantes físicas del universo usadas en los cálculos. **No hardcodear estos valores en ningún otro archivo.**
+
+```python
+MU_0 = 1.2566370614359173e-6   # Permeabilidad magnética del vacío [H/m]
+EPSILON_0 = 8.854187817e-12    # Permitividad eléctrica del vacío [F/m]
+ELEMENTARY_CHARGE = 1.602176634e-19  # Carga del electrón [C]
+ELECTRON_MASS = 9.1093837015e-31     # Masa del electrón [kg]
+SPEED_OF_LIGHT = 299792458.0         # Velocidad de la luz [m/s]
+K_E = 8.9875517923e9                 # Constante de Coulomb [N·m²/C²]
+```
+
+### `math_utils.py`
+
+Funciones matemáticas vectoriales auxiliares para uso en `physics/`.
+
+```python
+def normalize(v: np.ndarray) -> np.ndarray:
+    """Normaliza un vector. Retorna vector cero si la magnitud es cero."""
+
+def cross3(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """Producto cruzado para arrays de shape (N, 3). Wrappea np.cross."""
+
+def curl(field: np.ndarray, dx: float) -> np.ndarray:
+    """Calcula el rotacional de un campo vectorial en una grilla regular."""
+
+def divergence(field: np.ndarray, dx: float) -> np.ndarray:
+    """Calcula la divergencia de un campo vectorial en una grilla regular."""
+
+def interpolate_field(field: np.ndarray, grid_bounds: tuple, point: np.ndarray) -> np.ndarray:
+    """
+    Interpola el campo vectorial en un punto arbitrario usando interpolación trilineal.
+    Wrappea scipy.interpolate.RegularGridInterpolator.
+    """
+```
+
+### `scene_io.py`
+
+```python
+def save_scene(elements: list, filepath: str) -> None:
+    """
+    Guarda todos los elementos de la escena en un archivo JSON.
+    Llama a element.to_dict() para cada elemento.
+    El formato del archivo es: {"version": "1.0", "elements": [...]}
+    """
+
+def load_scene(filepath: str) -> list:
+    """
+    Carga una escena desde un archivo JSON.
+    Instancia el tipo correcto de elemento usando element.from_dict().
+    Retorna la lista de elementos reconstruidos.
+    """
+```
+
+### `config.py`
+
+Constantes de configuración de la aplicación (no constantes físicas). Valores que el desarrollador puede querer ajustar.
+
+```python
+# Grilla de campo
+GRID_RESOLUTION = 20          # Puntos por eje (20 = grilla 20x20x20)
+GRID_BOUNDS = (-1.0, 1.0,    # x_min, x_max en metros
+               -1.0, 1.0,    # y_min, y_max en metros
+               -1.0, 1.0)    # z_min, z_max en metros
+
+# Simulación
+DEFAULT_DT = 1e-10            # Paso de tiempo por defecto en segundos
+MAX_PARTICLE_TRAIL = 200      # Máximo de posiciones en el trail de un electrón
+
+# Visualización
+VECTOR_COLOR_B = (0.2, 0.5, 1.0)    # Azul para campo B
+VECTOR_COLOR_E = (1.0, 0.6, 0.1)    # Naranja para campo E
+VECTOR_COLOR_FORCE = (0.2, 0.9, 0.3) # Verde para J×B
+BACKGROUND_COLOR = (0.05, 0.05, 0.1) # Fondo casi negro, azul muy oscuro
+ELECTRON_COLOR = (0.4, 0.7, 1.0)    # Azul claro para electrones
+SELECTED_OUTLINE_COLOR = (1.0, 0.85, 0.0)  # Amarillo para selección
+
+# Render
+TARGET_FPS = 60
+FIELD_LINE_STEPS = 500        # Pasos de integración por línea de campo
+FIELD_LINE_STEP_SIZE = 0.01   # Tamaño de paso para trazar líneas de campo
+```
+
+---
+
+## 12. Convenciones de Código
+
+### Formato
+
+- **Formateo:** `black` con configuración por defecto (line-length 88)
+- **Linting:** `ruff` con reglas por defecto
+- **Type hints:** Obligatorios en todas las funciones públicas y métodos de clases
+- **Docstrings:** Obligatorios en todas las funciones y clases públicas. Formato: Google style.
+
+### Unidades físicas
+
+Todas las magnitudes físicas se expresan en **SI** (Sistema Internacional) internamente:
+- Distancias: metros (m)
+- Corriente: Amperios (A)
+- Campo magnético B: Teslas (T)
+- Campo eléctrico E: Voltios por metro (V/m)
+- Fuerza: Newtons (N)
+- Tiempo: segundos (s)
+- Carga: Coulombs (C)
+- Masa: kilogramos (kg)
+
+La conversión a otras unidades para display en la UI es responsabilidad del widget de propiedades de cada elemento.
+
+### Nomenclatura
+
+- Clases: `PascalCase`
+- Funciones y variables: `snake_case`
+- Constantes globales: `UPPER_SNAKE_CASE`
+- Archivos: `snake_case.py`
+- Arrays de campo: siempre nombrar `B_field`, `E_field`, `J_field`, no `field1`, `magnetic`, etc.
+
+### Tests
+
+Los tests van en `tests/` (carpeta a crear cuando se implemente el primer módulo testeable). Todo archivo en `physics/` debe tener su correspondiente `tests/test_{nombre}.py`. Los tests de `gui/` y `renderer/` son opcionales dado que requieren contexto visual.
+
+Ejemplo mínimo de test para `physics/`:
+```python
+def test_dipole_field_on_axis():
+    """El campo B de un dipolo en su eje debe seguir B = mu_0*m / (2*pi*r^3)"""
+    ...
+```
+
+---
+
+## 13. Reglas para Agentes de IA
+
+Esta sección es específicamente para agentes de IA que trabajen en este codebase.
+
+### Lo que un agente PUEDE hacer sin consultar
+
+- Implementar un método marcado como `raise NotImplementedError` dentro de los archivos ya definidos, respetando la firma del método y el docstring.
+- Agregar tests en la carpeta `tests/`.
+- Agregar comentarios internos en el código.
+- Corregir bugs en lógica matemática que contradigan las ecuaciones documentadas en este README.
+- Agregar el contenido de archivos GLSL en `assets/shaders/`.
+
+### Lo que un agente NO puede hacer sin aprobación explícita
+
+- Cambiar el nombre de una clase, método o atributo público.
+- Cambiar la firma (parámetros) de ninguna función documentada en este README.
+- Agregar nuevos tipos de elementos (aparte de los 7 documentados: Magnet, Coil, Wire, Battery, LED, Switch, Electron).
+- Agregar nuevas tabs o secciones al `ControlPanel`.
+- Agregar nuevas dependencias a `requirements.txt`.
+- Cambiar el método de integración numérica de `particles.py` (Boris leapfrog es obligatorio).
+- Implementar ningún método de `ai_assistant/` — ese módulo está congelado hasta decisión explícita del desarrollador.
+- Cambiar el formato de datos entre módulos (shapes de numpy arrays).
+- Agregar una base de datos, servidor web, o cualquier componente de red (excepto las llamadas a APIs de LLM en `ai_assistant/llm_connector.py`).
+
+### Preguntas que un agente debe hacerse antes de escribir código
+
+1. ¿Está esta funcionalidad documentada en el README?
+2. ¿Estoy respetando la dirección de dependencias (gui → renderer → elements → physics → utils)?
+3. ¿Estoy usando las unidades SI?
+4. ¿El array que retorno tiene el shape correcto documentado?
+5. ¿Estoy importando algo de `gui/` o `renderer/` dentro de `physics/`? (Esto está prohibido.)
+
+---
+
+## 14. Roadmap de Implementación
+
+El proyecto se construye en fases. Un agente solo debe trabajar en la fase activa actual. La fase activa se indica con `→ ACTIVA`.
+
+### Fase 0 — Scaffolding → ACTIVA (primer sprint)
+- [ ] Crear todos los archivos con sus clases vacías y docstrings
+- [ ] `utils/constants.py` y `utils/config.py` completos
+- [ ] `utils/math_utils.py` implementado y con tests
+- [ ] `elements/base_element.py` completo
+- [ ] `main.py` que abre una `QMainWindow` vacía sin errores
+- [ ] `requirements.txt` con versiones pinneadas
+
+### Fase 1 — Física básica + visualización mínima
+- [ ] `physics/em_fields.py` implementado para Magnet y Coil
+- [ ] `elements/magnet.py` y `elements/coil.py` con `get_B_contribution()`
+- [ ] `renderer/scene3d.py` con cámara orbital y ejes XYZ
+- [ ] `renderer/field_renderer.py` con `draw_vectors()` para campo B
+- [ ] El usuario puede colocar un imán y ver el campo B como flechas 3D
+
+### Fase 2 — Partículas
+- [ ] `physics/particles.py` con integrador Boris
+- [ ] `renderer/objects.py` con `draw_particles()`
+- [ ] El usuario puede colocar un electrón y verlo moverse bajo la fuerza de Lorentz
+
+### Fase 3 — Circuitos y más elementos
+- [ ] `elements/wire.py`, `battery.py`, `led.py`, `switch.py`
+- [ ] `physics/circuits.py` con MNA
+- [ ] `renderer/objects.py` completado con todos los meshes
+- [ ] Circuito básico: batería + cable + LED funcionando
+
+### Fase 4 — Inducción
+- [ ] `physics/induction.py` completo
+- [ ] Animación de imán moviéndose dentro de una espira con FEM visible
+
+### Fase 5 — Panel de control e IA skeleton
+- [ ] `gui/control_panel.py` completo con las 3 tabs
+- [ ] `gui/viz_toggles.py` completo
+- [ ] `gui/ai_panel.py` esqueleto con UI pero sin LLM conectado
+- [ ] `ai_assistant/context_builder.py` implementado
+- [ ] `ai_assistant/physics_explainer.py` implementado
+
+### Fase 6 — Pulido y features avanzadas
+- [ ] Líneas de campo (`draw_fieldlines()`)
+- [ ] Visualización del producto cruzado J×B
+- [ ] Colormap volumétrico
+- [ ] Guardar/cargar escenas (`scene_io.py`)
+- [ ] Torque en espiras (motor eléctrico básico)
+
+---
+
+## 15. Dependencias y Entorno
+
+### Instalación
+
+```bash
+# Clonar el repositorio
+git clone https://github.com/[usuario]/em_simulator.git
+cd em_simulator
+
+# Crear entorno virtual
+python -m venv venv
+source venv/bin/activate  # En Windows: venv\Scripts\activate
+
+# Instalar dependencias
+pip install -r requirements.txt
+
+# Ejecutar
+python main.py
+```
+
+### `requirements.txt` (versiones mínimas, pinear a exactas al iniciar)
+
+```
+PyQt6>=6.6.0
+PyOpenGL>=3.1.7
+moderngl>=5.10.0
+numpy>=1.26.0
+scipy>=1.12.0
+pyrr>=0.10.3
+```
+
+### `requirements-dev.txt`
+
+```
+pytest>=8.0.0
+black>=24.0.0
+ruff>=0.3.0
+mypy>=1.9.0
+```
+
+### Compatibilidad de sistema operativo
+
+- **Windows 10/11:** Soporte completo (PyQt6 + OpenGL funciona nativamente)
+- **macOS 12+:** Soporte completo (puede requerir `brew install python-tk` para algunas versiones)
+- **Linux (Ubuntu 22.04+):** Soporte completo (puede requerir `apt install libxcb-xinerama0`)
+
+### Python
+
+Versión mínima: **3.11**. Razones: f-strings mejoradas, `tomllib` en stdlib, mejor rendimiento de `match/case`.
+
+---
+
+*Este README es un documento vivo. Cualquier cambio en la arquitectura o en las interfaces debe reflejarse aquí antes de ser implementado en el código.*
