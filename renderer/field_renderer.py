@@ -67,7 +67,7 @@ class FieldRenderer:
         self.vbo_instances.write(data)
         
        # Actualizamos variables de estado
-        self.program['u_scale'].value = scale        # type: ignore
+       # self.program['u_scale'].value = scale#        # type: ignore
         self.program['u_base_color'].value = color   # type: ignore
         
         # ¡Magia instanciada! (GL_LINES es súper ligero)

@@ -15,7 +15,7 @@ class Scene3D(QOpenGLWidget):
         self.field_renderer = None
         
         # Estado de la cámara orbital
-        self.camera_distance = 3.0
+        self.camera_distance = 1.5
         self.camera_rot_x = np.pi / 6   # Elevación inicial
         self.camera_rot_y = -np.pi / 4  # Azimut inicial
         self.last_mouse_pos = None
@@ -28,7 +28,8 @@ class Scene3D(QOpenGLWidget):
         """Se llama una sola vez cuando la ventana se crea."""
         self.ctx = moderngl.create_context()
         self.ctx.enable(moderngl.DEPTH_TEST) # Para que las flechas cercanas tapen a las lejanas
-        
+        self.ctx.line_width = 2.0
+
         # Inicializar nuestro dibujante de campos
         self.field_renderer = FieldRenderer(self.ctx)
 
@@ -64,8 +65,8 @@ class Scene3D(QOpenGLWidget):
         # 4. ¡Dibujar!
         self.field_renderer.draw_vectors(
             field=self.B_field,
-            color=(0.2, 0.5, 1.0), # Azul para campo B
-            scale=1.0,
+            color=(1.0, 0.8, 0.0), # <--- Amarillo brillante para máximo contraste
+            scale=1.0,             # (El scale ya no importa tanto con el nuevo shader)
             density=3
         )
 
